@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# PyInstaller output and its generated spec
+build/
+dist/
+*.spec
+
+# generated at build time by appicon.py
+assets/icon.ico
+
+# screenshots saved with the S key
+viz-*.png
