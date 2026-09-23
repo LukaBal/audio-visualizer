@@ -11,7 +11,9 @@ import os
 FOLDER = os.path.join(
     os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "AudioVisualizer"
 )
-PATH = os.path.join(FOLDER, "config.json")
+# AUDIOVIZ_CONFIG lets tests point somewhere else; without it they would
+# overwrite the real settings of whatever copy the user is running.
+PATH = os.environ.get("AUDIOVIZ_CONFIG") or os.path.join(FOLDER, "config.json")
 
 KEYS = (
     "mode",

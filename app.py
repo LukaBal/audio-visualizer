@@ -58,6 +58,7 @@ class TrayApp:
         self.icon = None
         self.hotkey = None
         self.monitors = monitor_rects()
+        self._last_saved_pos = self.viz.gadget_pos
 
     def post(self, name, arg=None):
         """Thread-safe: tray and hotkey threads must not touch pygame directly."""
@@ -238,6 +239,19 @@ class TrayApp:
             except Exception:
                 pass
 
+    def _save_moved_position(self):
+        """Persist a drag as soon as it ends.
+
+        Settings are otherwise written on a menu action or a clean quit, so
+        being force-killed used to lose wherever you had just dragged it.
+        """
+        if self.viz._dragging:
+            return
+        pos = self.viz.gadget_pos
+        if pos and tuple(pos) != tuple(self._last_saved_pos or ()):
+            self._last_saved_pos = pos
+            self.save_settings()
+
     def save_settings(self):
         viz = self.viz
         settings.save(
@@ -304,6 +318,7 @@ class TrayApp:
                 if not self.viz.is_open:
                     self.viz.open()
                 self.viz.frame()
+                self._save_moved_position()
                 if not self.viz.running:  # engine asked to exit outright
                     self.alive = False
             else:
@@ -326,9 +341,17 @@ class TrayApp:
         pygame.quit()
 
 
-def parse_size(text, fallback):
+def parse_size(value, fallback):
+    """Accept both "460x260" from the command line and [460, 260] from the
+    saved settings -- JSON gives back a list, and treating it as a string
+    silently fell back to the default, losing any resize."""
+    if isinstance(value, (list, tuple)):
+        try:
+            return (int(value[0]), int(value[1]))
+        except (TypeError, ValueError, IndexError):
+            return fallback
     try:
-        w, h = (int(v) for v in str(text).lower().split("x"))
+        w, h = (int(v) for v in str(value).lower().split("x"))
         return (w, h)
     except (ValueError, AttributeError):
         return fallback

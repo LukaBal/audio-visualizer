@@ -27,6 +27,21 @@ By default it runs as a **transparent desktop gadget**: a small frameless panel
 with no background, sitting on your desktop, below your other windows and out of
 the taskbar.
 
+## Install it
+
+```
+python build.py      builds dist\AudioVisualizer.exe
+python install.py    copies it to %LOCALAPPDATA%\Programs and makes shortcuts
+```
+
+After that it is a normal app: launch it from the **Start Menu**, the **Desktop
+icon**, or by searching for "Audio Visualizer". No Python needed to run it, and
+no command to type. `python install.py --uninstall` removes the app and its
+shortcuts (settings and logs are left alone).
+
+Installing also copies the exe out of `dist/`, which means `python build.py`
+keeps working while the app is running -- Windows locks a running .exe.
+
 ## The standalone app
 
 ```
