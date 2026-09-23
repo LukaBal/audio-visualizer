@@ -196,6 +196,35 @@ def set_no_activate(h, enabled):
     )
 
 
+class _POINT(ctypes.Structure):
+    _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+
+def cursor_pos():
+    """Cursor position in screen coordinates.
+
+    Dragging has to work from absolute positions: pygame reports motion
+    RELATIVE to the window, so moving the window changes the next reading and
+    the drag feeds back on itself.
+    """
+    try:
+        point = _POINT()
+        if _user32.GetCursorPos(ctypes.byref(point)):
+            return (point.x, point.y)
+    except Exception:
+        pass
+    return None
+
+
+def left_button_down():
+    """Asked directly, because a no-activate window can miss the button-up
+    event if the release happens outside it."""
+    try:
+        return bool(_user32.GetAsyncKeyState(0x01) & 0x8000)
+    except Exception:
+        return False
+
+
 def foreground_window():
     try:
         return _user32.GetForegroundWindow()

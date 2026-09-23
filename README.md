@@ -50,7 +50,10 @@ Where you put the gadget, how big it is and how it looks are remembered in
 
 ## Gadget mode
 
-- **Drag** it anywhere with the mouse.
+- **Drag** it anywhere: click and hold anywhere on it and it follows the cursor.
+  The whole panel is the grab handle — there is no title bar.
+- **Lock position** in the tray menu pins it where it is, so you cannot nudge it
+  by accident. Unlock to move it again. Wheel-resize is disabled while locked too.
 - **Mouse wheel** resizes it.
 - **Opacity** — 100 / 85 / 70 / 55 / 40% in the tray menu.
 - **Click-through** — clicks pass straight through to whatever is underneath, so
@@ -68,13 +71,16 @@ you are doing — clicking it does not raise it, and it does not grab the keyboa
 when it appears.
 
 Transparency is a colour key: pure black is punched out, everything else is drawn
-at the chosen opacity. Anything *nearly* black survives the key and would show as
-a dark haze, so gadget mode skips the wide ambient glows and subtracts a small
-floor from each finished frame, pushing all of that to true black. That works here because every mode already draws on black
-and the trails fade back to black — so you see bars and rings floating on your
-wallpaper, with no panel behind them. SDL2 has no per-pixel-alpha window on
-Windows, which is why it is a colour key rather than true alpha: pixels that are
-*nearly* black stay faintly visible instead of fading out completely.
+at the chosen opacity. That suits this app because every mode already draws on
+black and the trails fade back to black, so what you get is bars and rings
+floating on your wallpaper with no panel behind them.
+
+SDL2 has no per-pixel-alpha window on Windows, hence a colour key rather than
+true alpha — and a colour key removes only *exact* black. Anything a shade above
+it survives as a dark haze, which is what glow gradients are made of. Gadget mode
+therefore skips the wide ambient glows and subtracts a small floor from each
+finished frame, pushing that haze down to true black. It is a good approximation,
+not real alpha: a hard edge can still show where a gradient crosses the floor.
 
 ### Behind the desktop icons (experimental)
 
@@ -119,7 +125,7 @@ run.bat              same as viz.py, double-clickable
 ```
 --gadget --opacity 0.7 --gadget-size 520x300 --pos 1400,760
 --layer desktop|normal|top   where it sits in the window stack
---click-through
+--click-through --locked
 --wallpaper                  behind the desktop icons (experimental)
 --fullscreen --display 1     fullscreen on your second monitor
 --mode bars --palette cyan

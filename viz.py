@@ -33,6 +33,7 @@ def parse_args(argv=None):
     p.add_argument("--pos", help="gadget position, e.g. 1400,760")
     p.add_argument("--opacity", type=float, default=0.9, help="0.1 to 1.0")
     p.add_argument("--click-through", dest="click_through", action="store_true")
+    p.add_argument("--locked", action="store_true", help="pin the gadget in place")
     p.add_argument(
         "--layer",
         default="desktop",
@@ -95,6 +96,7 @@ def main(argv=None):
         opacity=args.opacity,
         click_through=args.click_through,
         layer=args.layer,
+        locked=args.locked,
     )
     viz.open()
 

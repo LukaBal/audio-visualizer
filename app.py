@@ -167,6 +167,11 @@ class TrayApp:
                 checked=lambda it: self.viz.click_through,
             ),
             item("Window layer", layers),
+            item(
+                "Lock position",
+                self._action("lock"),
+                checked=lambda it: self.viz.locked,
+            ),
             pystray.Menu.SEPARATOR,
             item("Fullscreen", self._action("fullscreen"), checked=lambda it: self.viz.fullscreen),
             item("Overlay", self._action("hud"), checked=lambda it: self.viz.show_hud),
@@ -218,6 +223,8 @@ class TrayApp:
             viz.set_click_through(not viz.click_through)
         elif name == "layer":
             viz.set_layer(arg)
+        elif name == "lock":
+            viz.set_locked(not viz.locked)
         elif name == "autostart":
             autostart.toggle()
         elif name == "quit":
@@ -244,6 +251,7 @@ class TrayApp:
                 "opacity": round(viz.opacity, 3),
                 "click_through": viz.click_through,
                 "layer": viz.layer,
+                "locked": viz.locked,
                 "display": viz.display,
                 "visible": self.visible,
             }
@@ -339,6 +347,9 @@ def parse_args(argv=None):
     )
     p.add_argument("--click-through", dest="click_through", action="store_const", const=True)
     p.add_argument(
+        "--locked", action="store_const", const=True, help="pin the gadget in place"
+    )
+    p.add_argument(
         "--layer",
         choices=LAYERS,
         help="desktop = behind every window (default), normal, or top",
@@ -385,6 +396,7 @@ def main(argv=None):
         opacity=pick("opacity", 0.9),
         click_through=pick("click_through", False),
         layer=pick("layer", "desktop"),  # stay out of the way unless told otherwise
+        locked=pick("locked", False),
     ).run()
     return 0
 

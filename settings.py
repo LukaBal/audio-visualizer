@@ -24,6 +24,7 @@ KEYS = (
     "click_through",
     "topmost",
     "layer",
+    "locked",
     "display",
     "visible",
 )

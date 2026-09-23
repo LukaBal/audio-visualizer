@@ -8,6 +8,8 @@ both at runtime -- that is what lets the tray app switch it off completely
 import os
 import time
 
+os.environ.setdefault("SDL_MOUSE_FOCUS_CLICKTHROUGH", "1")
+
 import pygame
 
 from analysis import FFT_SIZE, Analyzer
@@ -63,6 +65,7 @@ class Visualizer:
         click_through=False,
         topmost=None,
         layer="desktop",
+        locked=False,
     ):
         self.size = size
         self.fps = fps
@@ -85,8 +88,11 @@ class Visualizer:
         if topmost is not None:
             layer = "top" if topmost else "normal"
         self.layer = layer if layer in LAYERS else "desktop"
+        self.locked = bool(locked)
         self._attached = False
         self._dragging = False
+        self._drag_cursor = None
+        self._drag_window = None
         self._bottom_ticks = 0
 
         self.mode_idx = MODE_NAMES.index(mode) if mode in MODE_NAMES else 0
@@ -360,17 +366,46 @@ class Visualizer:
     def topmost(self):
         return self.layer == "top"
 
-    def move_window_by(self, rel):
+    def begin_drag(self):
+        """Anchor the drag: remember where the cursor and the window both were."""
+        if not self.gadget or self.locked:
+            return False
+        cursor = overlay.cursor_pos()
+        if cursor is None:
+            return False
         try:
-            x, y = pygame.display.get_window_position()
+            self._drag_window = tuple(pygame.display.get_window_position())
         except (AttributeError, pygame.error):
+            return False
+        self._drag_cursor = cursor
+        self._dragging = True
+        return True
+
+    def end_drag(self):
+        self._dragging = False
+        self._drag_cursor = self._drag_window = None
+
+    def drag_to(self, cursor):
+        """Move so the window keeps the same offset from the cursor it started
+        with. Both anchors are fixed at button-down, so there is no feedback."""
+        if not (self._dragging and cursor and self._drag_cursor and self._drag_window):
             return
-        pos = (int(x + rel[0]), int(y + rel[1]))
+        pos = (
+            int(self._drag_window[0] + cursor[0] - self._drag_cursor[0]),
+            int(self._drag_window[1] + cursor[1] - self._drag_cursor[1]),
+        )
+        if pos == tuple(self.gadget_pos or ()):
+            return
         try:
             pygame.display.set_window_position(pos)
         except (AttributeError, TypeError, pygame.error):
             return
         self.gadget_pos = pos
+
+    def set_locked(self, value):
+        self.locked = bool(value)
+        if self.locked:
+            self.end_drag()
 
     def scale_gadget(self, factor):
         w, h = self.gadget_size
@@ -427,12 +462,10 @@ class Visualizer:
                 self.size = event.size  # remembered, so leaving fullscreen restores it
                 self._apply_window(move=False)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                self._dragging = self.gadget
+                self.begin_drag()
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                self._dragging = False
-            elif event.type == pygame.MOUSEMOTION and self._dragging:
-                self.move_window_by(event.rel)
-            elif event.type == pygame.MOUSEWHEEL and self.gadget:
+                self.end_drag()
+            elif event.type == pygame.MOUSEWHEEL and self.gadget and not self.locked:
                 self.scale_gadget(1.0 + 0.08 * event.y)
             elif event.type == pygame.KEYDOWN:
                 self._handle_key(event.key)
@@ -515,6 +548,11 @@ class Visualizer:
         """One tick: events, then a rendered frame if the window is still up."""
         dt = self.clock.tick(self.fps) / 1000.0
         self.handle_events()
+        if self._dragging:
+            if overlay.left_button_down():
+                self.drag_to(overlay.cursor_pos())
+            else:
+                self.end_drag()  # released off-window, so we never saw the event
         if self.is_open and self.running:
             self.render(dt)
             if self.gadget and self.layer == "desktop":
