@@ -14,7 +14,7 @@ import pygame
 
 from analysis import FFT_SIZE, Analyzer
 from capture import SAMPLERATE, AudioCapture
-from displays import monitor_rects
+from displays import clamp_to_monitor, monitor_rects
 from modes import MODES, PALETTES
 import overlay
 
@@ -235,9 +235,14 @@ class Visualizer:
             self.screen = pygame.display.set_mode(self.size, pygame.RESIZABLE)
 
     def _gadget_origin(self, idx):
-        """Remembered spot, else tucked into the monitor's bottom-right corner."""
+        """Remembered spot, else tucked into the monitor's bottom-right corner.
+
+        A remembered spot is re-clamped: the monitor it was saved on may have
+        been unplugged or rearranged since, which would otherwise strand the
+        gadget somewhere invisible.
+        """
         if self.gadget_pos is not None:
-            return tuple(self.gadget_pos)
+            return clamp_to_monitor(tuple(self.gadget_pos), self.gadget_size)
         rects = monitor_rects()
         w, h = self.gadget_size
         if idx < len(rects):
@@ -394,6 +399,12 @@ class Visualizer:
             int(self._drag_window[0] + cursor[0] - self._drag_cursor[0]),
             int(self._drag_window[1] + cursor[1] - self._drag_cursor[1]),
         )
+        # Never let it leave the screen. The cursor picks the target monitor,
+        # so dragging onto a second display still works -- it just cannot be
+        # parked off an outer edge, or in the gap between two monitors.
+        pos = clamp_to_monitor(
+            pos, self.screen.get_size(), cursor, anchor=self.gadget_pos
+        )
         if pos == tuple(self.gadget_pos or ()):
             return
         try:
@@ -412,6 +423,8 @@ class Visualizer:
         ratio = h / w
         w = int(max(200, min(1600, w * factor)))
         self.gadget_size = (w, int(w * ratio))
+        if self.gadget_pos is not None:  # growing can push it off the edge
+            self.gadget_pos = clamp_to_monitor(self.gadget_pos, self.gadget_size)
         if self.is_open and self.gadget:
             self._apply_window()
 

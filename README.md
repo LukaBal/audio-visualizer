@@ -66,7 +66,10 @@ Where you put the gadget, how big it is and how it looks are remembered in
 ## Gadget mode
 
 - **Drag** it anywhere: click and hold anywhere on it and it follows the cursor.
-  The whole panel is the grab handle — there is no title bar.
+  The whole panel is the grab handle — there is no title bar. It cannot be pushed
+  off the screen: it stays fully inside whichever monitor the cursor is on, so
+  dragging it to a second monitor works, but dragging it into nothing does not.
+  A position saved on a monitor that is later unplugged is pulled back on screen.
 - **Lock position** in the tray menu pins it where it is, so you cannot nudge it
   by accident. Unlock to move it again. Wheel-resize is disabled while locked too.
 - **Mouse wheel** resizes it.
