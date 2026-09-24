@@ -105,6 +105,7 @@ class Visualizer:
         self._drag_window = None
         self._drag_rect = None
         self._hover_cursor = None
+        self._pre_fullscreen = None  # layout to return to when leaving fullscreen
         self._bottom_ticks = 0
 
         self.mode_idx = MODE_NAMES.index(mode) if mode in MODE_NAMES else 0
@@ -330,6 +331,7 @@ class Visualizer:
         if value == self.gadget:
             return
         self.gadget = value
+        self._pre_fullscreen = None
         if value:
             self.wallpaper = False
             self.fullscreen = False
@@ -341,6 +343,7 @@ class Visualizer:
         if value == self.wallpaper:
             return
         self.wallpaper = value
+        self._pre_fullscreen = None
         if value:
             self.gadget = False
             self.fullscreen = False
@@ -578,13 +581,22 @@ class Visualizer:
             self._apply_window()
 
     def set_fullscreen(self, value):
+        """Fullscreen is exclusive with the desktop layouts, so entering it has
+        to switch them off -- and leaving it has to switch them back on, or a
+        gadget returns as a plain titled window instead of the gadget it was."""
         value = bool(value)
         if value == self.fullscreen:
             return
         self.fullscreen = value
         if value:
+            self._pre_fullscreen = (self.gadget, self.wallpaper)
             self.gadget = False
             self.wallpaper = False
+        elif self._pre_fullscreen is not None:
+            self.gadget, self.wallpaper = self._pre_fullscreen
+            self._pre_fullscreen = None
+            if self.gadget or self.wallpaper:
+                self.show_hud = False
         self._reopen()
 
     def set_display(self, index):

@@ -96,6 +96,10 @@ Because it sits below other windows and refuses focus, it cannot interrupt what
 you are doing — clicking it does not raise it, and it does not grab the keyboard
 when it appears.
 
+**Fullscreen** (tray menu, or `F`) borrows the whole monitor for as long as you
+want it, then hands everything back: leaving fullscreen returns the gadget to the
+exact size, position and transparency it had, rather than to a plain window.
+
 Transparency is a colour key: pure black is punched out, everything else is drawn
 at the chosen opacity. That suits this app because every mode already draws on
 black and the trails fade back to black, so what you get is bars and rings
