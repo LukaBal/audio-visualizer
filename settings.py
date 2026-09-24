@@ -27,6 +27,7 @@ KEYS = (
     "topmost",
     "layer",
     "locked",
+    "resizable",
     "display",
     "visible",
 )

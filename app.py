@@ -173,6 +173,11 @@ class TrayApp:
                 self._action("lock"),
                 checked=lambda it: self.viz.locked,
             ),
+            item(
+                "Resize by dragging edges",
+                self._action("resizable"),
+                checked=lambda it: self.viz.resizable,
+            ),
             pystray.Menu.SEPARATOR,
             item("Fullscreen", self._action("fullscreen"), checked=lambda it: self.viz.fullscreen),
             item("Overlay", self._action("hud"), checked=lambda it: self.viz.show_hud),
@@ -226,6 +231,8 @@ class TrayApp:
             viz.set_layer(arg)
         elif name == "lock":
             viz.set_locked(not viz.locked)
+        elif name == "resizable":
+            viz.set_resizable(not viz.resizable)
         elif name == "autostart":
             autostart.toggle()
         elif name == "quit":
@@ -266,6 +273,7 @@ class TrayApp:
                 "click_through": viz.click_through,
                 "layer": viz.layer,
                 "locked": viz.locked,
+                "resizable": viz.resizable,
                 "display": viz.display,
                 "visible": self.visible,
             }
@@ -373,6 +381,13 @@ def parse_args(argv=None):
         "--locked", action="store_const", const=True, help="pin the gadget in place"
     )
     p.add_argument(
+        "--no-drag-resize",
+        dest="resizable",
+        action="store_const",
+        const=False,
+        help="do not resize when dragging the edges",
+    )
+    p.add_argument(
         "--layer",
         choices=LAYERS,
         help="desktop = behind every window (default), normal, or top",
@@ -420,6 +435,7 @@ def main(argv=None):
         click_through=pick("click_through", False),
         layer=pick("layer", "desktop"),  # stay out of the way unless told otherwise
         locked=pick("locked", False),
+        resizable=pick("resizable", True),
     ).run()
     return 0
 

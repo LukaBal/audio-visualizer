@@ -14,7 +14,12 @@ import pygame
 
 from analysis import FFT_SIZE, Analyzer
 from capture import SAMPLERATE, AudioCapture
-from displays import clamp_to_monitor, monitor_rects
+from displays import (
+    clamp_to_monitor,
+    monitor_containing,
+    monitor_overlapping,
+    monitor_rects,
+)
 from modes import MODES, PALETTES
 import overlay
 
@@ -22,6 +27,7 @@ BG_FLOOR = 12  # see render(): keeps colour-key transparency actually transparen
 
 LAYERS = ("top", "normal", "desktop")
 BOTTOM_REASSERT_FRAMES = 120  # ~2s; cheap insurance against drifting upward
+MIN_GADGET = (180, 110)  # below this the spectrum stops being readable
 
 MODE_NAMES = [m.name for m in MODES]
 PALETTE_NAMES = [p[0] for p in PALETTES]
@@ -66,6 +72,7 @@ class Visualizer:
         topmost=None,
         layer="desktop",
         locked=False,
+        resizable=True,
     ):
         self.size = size
         self.fps = fps
@@ -89,10 +96,15 @@ class Visualizer:
             layer = "top" if topmost else "normal"
         self.layer = layer if layer in LAYERS else "desktop"
         self.locked = bool(locked)
+        self.resizable = bool(resizable)
         self._attached = False
         self._dragging = False
+        self._drag_kind = None       # "move" or "resize"
+        self._drag_edges = (0, 0)    # -1 / 0 / +1 per axis
         self._drag_cursor = None
         self._drag_window = None
+        self._drag_rect = None
+        self._hover_cursor = None
         self._bottom_ticks = 0
 
         self.mode_idx = MODE_NAMES.index(mode) if mode in MODE_NAMES else 0
@@ -371,9 +383,27 @@ class Visualizer:
     def topmost(self):
         return self.layer == "top"
 
-    def begin_drag(self):
-        """Anchor the drag: remember where the cursor and the window both were."""
-        if not self.gadget or self.locked:
+    def edges_at(self, point):
+        """Which edges a point inside the window grabs, as (x, y) in -1/0/+1.
+
+        (0, 0) means the middle of the panel, i.e. a move rather than a resize.
+        """
+        if not self.is_open:
+            return (0, 0)
+        w, h = self.screen.get_size()
+        margin = max(6, min(18, int(min(w, h) * 0.08)))
+        px, py = point
+        ex = -1 if px < margin else (1 if px >= w - margin else 0)
+        ey = -1 if py < margin else (1 if py >= h - margin else 0)
+        return (ex, ey)
+
+    def begin_drag(self, point=None):
+        """Anchor the drag: remember where the cursor and the window both were.
+
+        Grabbing inside the edge margin resizes along that axis: one edge for
+        width or height alone, a corner for both at once. Anywhere else moves.
+        """
+        if not self.gadget:
             return False
         cursor = overlay.cursor_pos()
         if cursor is None:
@@ -382,13 +412,132 @@ class Visualizer:
             self._drag_window = tuple(pygame.display.get_window_position())
         except (AttributeError, pygame.error):
             return False
+
+        edges = self.edges_at(point) if (point and self.resizable) else (0, 0)
+        if edges != (0, 0):
+            w, h = self.screen.get_size()
+            self._drag_kind = "resize"
+            self._drag_edges = edges
+            self._drag_rect = (self._drag_window[0], self._drag_window[1], w, h)
+        elif self.locked:
+            return False
+        else:
+            self._drag_kind = "move"
+            self._drag_edges = (0, 0)
+
         self._drag_cursor = cursor
         self._dragging = True
         return True
 
     def end_drag(self):
+        was_resize = self._drag_kind == "resize"
         self._dragging = False
-        self._drag_cursor = self._drag_window = None
+        self._drag_kind = None
+        self._drag_edges = (0, 0)
+        self._drag_cursor = self._drag_window = self._drag_rect = None
+        if was_resize and self.is_open:
+            # One full rebuild at the end restores anything the fast in-drag
+            # resize path skips.
+            self._apply_window()
+
+    def drag_update(self, cursor):
+        if self._drag_kind == "resize":
+            self.resize_to(cursor)
+        elif self._drag_kind == "move":
+            self.drag_to(cursor)
+
+    def resize_to(self, cursor):
+        """Resize from whichever edges were grabbed at button-down.
+
+        Anchored like a move: the starting rect and cursor are both fixed, so
+        the geometry cannot feed back on itself as the window changes.
+        """
+        if not (self._drag_rect and self._drag_cursor and self.is_open):
+            return
+        sx, sy, sw, sh = self._drag_rect
+        ex, ey = self._drag_edges
+        dx = cursor[0] - self._drag_cursor[0]
+        dy = cursor[1] - self._drag_cursor[1]
+
+        w = sw + dx * ex if ex else sw
+        h = sh + dy * ey if ey else sh
+        w = max(MIN_GADGET[0], int(w))
+        h = max(MIN_GADGET[1], int(h))
+        # A left/top edge drag moves the far corner, so the origin follows the
+        # clamped size rather than the raw cursor delta.
+        x = sx + sw - w if ex < 0 else sx
+        y = sy + sh - h if ey < 0 else sy
+
+        x, y, w, h = self._fit_rect_to_monitor((x, y, w, h), cursor)
+        if (w, h) == tuple(self.gadget_size) and (x, y) == tuple(self.gadget_pos or ()):
+            return
+        self.apply_geometry((x, y), (w, h))
+
+    def _fit_rect_to_monitor(self, rect, cursor=None):
+        """Trim a rect so it stays on one screen, shrinking rather than sliding."""
+        x, y, w, h = rect
+        target = monitor_containing(cursor) or monitor_overlapping((x, y, w, h))
+        if target is None:
+            return (x, y, w, h)
+        mx, my, mw, mh = target
+        if x < mx:
+            w -= mx - x
+            x = mx
+        if y < my:
+            h -= my - y
+            y = my
+        w = min(w, mx + mw - x)
+        h = min(h, my + mh - y)
+        return (x, y, max(MIN_GADGET[0], w), max(MIN_GADGET[1], h))
+
+    def apply_geometry(self, pos, size):
+        """Resize (and reposition) the live window without a full rebuild.
+
+        set_mode keeps the same HWND, so the layered and tool-window styles
+        survive; re-applying them mid-drag would only cost time.
+        """
+        self.gadget_size = (int(size[0]), int(size[1]))
+        try:
+            self.screen = pygame.display.set_mode(self.gadget_size, pygame.NOFRAME)
+        except pygame.error as exc:
+            print("resize failed:", exc)
+            return
+        self.trail = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        pos = (int(pos[0]), int(pos[1]))
+        try:
+            pygame.display.set_window_position(pos)
+        except (AttributeError, TypeError, pygame.error):
+            pass
+        self.gadget_pos = pos
+
+    def set_resizable(self, value):
+        self.resizable = bool(value)
+        if not self.resizable and self._drag_kind == "resize":
+            self.end_drag()
+
+    def update_hover_cursor(self, point):
+        """Show the matching resize cursor over the edges, so it is findable."""
+        if not (self.gadget and self.resizable) or self._dragging:
+            return
+        ex, ey = self.edges_at(point) if point else (0, 0)
+        if ex and ey:
+            shape = (
+                pygame.SYSTEM_CURSOR_SIZENWSE
+                if ex == ey
+                else pygame.SYSTEM_CURSOR_SIZENESW
+            )
+        elif ex:
+            shape = pygame.SYSTEM_CURSOR_SIZEWE
+        elif ey:
+            shape = pygame.SYSTEM_CURSOR_SIZENS
+        else:
+            shape = pygame.SYSTEM_CURSOR_ARROW
+        if shape != self._hover_cursor:
+            self._hover_cursor = shape
+            try:
+                pygame.mouse.set_cursor(shape)
+            except (pygame.error, TypeError):
+                pass
 
     def drag_to(self, cursor):
         """Move so the window keeps the same offset from the cursor it started
@@ -421,8 +570,8 @@ class Visualizer:
     def scale_gadget(self, factor):
         w, h = self.gadget_size
         ratio = h / w
-        w = int(max(200, min(1600, w * factor)))
-        self.gadget_size = (w, int(w * ratio))
+        w = int(max(MIN_GADGET[0], min(1600, w * factor)))
+        self.gadget_size = (w, max(MIN_GADGET[1], int(w * ratio)))
         if self.gadget_pos is not None:  # growing can push it off the edge
             self.gadget_pos = clamp_to_monitor(self.gadget_pos, self.gadget_size)
         if self.is_open and self.gadget:
@@ -475,10 +624,12 @@ class Visualizer:
                 self.size = event.size  # remembered, so leaving fullscreen restores it
                 self._apply_window(move=False)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                self.begin_drag()
+                self.begin_drag(getattr(event, "pos", None))
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 self.end_drag()
-            elif event.type == pygame.MOUSEWHEEL and self.gadget and not self.locked:
+            elif event.type == pygame.MOUSEMOTION and not self._dragging:
+                self.update_hover_cursor(getattr(event, "pos", None))
+            elif event.type == pygame.MOUSEWHEEL and self.gadget and self.resizable:
                 self.scale_gadget(1.0 + 0.08 * event.y)
             elif event.type == pygame.KEYDOWN:
                 self._handle_key(event.key)
@@ -563,7 +714,7 @@ class Visualizer:
         self.handle_events()
         if self._dragging:
             if overlay.left_button_down():
-                self.drag_to(overlay.cursor_pos())
+                self.drag_update(overlay.cursor_pos())
             else:
                 self.end_drag()  # released off-window, so we never saw the event
         if self.is_open and self.running:

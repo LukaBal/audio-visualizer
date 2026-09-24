@@ -35,6 +35,12 @@ def parse_args(argv=None):
     p.add_argument("--click-through", dest="click_through", action="store_true")
     p.add_argument("--locked", action="store_true", help="pin the gadget in place")
     p.add_argument(
+        "--no-drag-resize",
+        dest="resizable",
+        action="store_false",
+        help="do not resize when dragging the edges",
+    )
+    p.add_argument(
         "--layer",
         default="desktop",
         choices=("desktop", "normal", "top"),
@@ -97,6 +103,7 @@ def main(argv=None):
         click_through=args.click_through,
         layer=args.layer,
         locked=args.locked,
+        resizable=args.resizable,
     )
     viz.open()
 

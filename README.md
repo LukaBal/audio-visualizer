@@ -70,9 +70,17 @@ Where you put the gadget, how big it is and how it looks are remembered in
   off the screen: it stays fully inside whichever monitor the cursor is on, so
   dragging it to a second monitor works, but dragging it into nothing does not.
   A position saved on a monitor that is later unplugged is pulled back on screen.
-- **Lock position** in the tray menu pins it where it is, so you cannot nudge it
-  by accident. Unlock to move it again. Wheel-resize is disabled while locked too.
-- **Mouse wheel** resizes it.
+- **Resize by dragging edges** — a tray toggle, on by default. Grab the left or
+  right edge for **width**, the top or bottom edge for **height**, or any corner
+  for **both at once**. The pointer changes shape as you cross an edge so you can
+  see where the grab zone is. Dragging a left or top edge keeps the opposite side
+  planted. Minimum size is 180x110, and it cannot be grown past the edge of the
+  screen. Turn the toggle off and the edges become draggable like the rest of the
+  panel, moving it instead.
+- **Mouse wheel** resizes proportionally. Also governed by that toggle.
+- **Lock position** pins it where it sits so you cannot nudge it by accident.
+  It is independent of resizing: a locked gadget still resizes from its edges, it
+  just will not move.
 - **Opacity** — 100 / 85 / 70 / 55 / 40% in the tray menu.
 - **Click-through** — clicks pass straight through to whatever is underneath, so
   it cannot get in your way. (You can still move it again by turning
@@ -143,7 +151,7 @@ run.bat              same as viz.py, double-clickable
 ```
 --gadget --opacity 0.7 --gadget-size 520x300 --pos 1400,760
 --layer desktop|normal|top   where it sits in the window stack
---click-through --locked
+--click-through --locked --no-drag-resize
 --wallpaper                  behind the desktop icons (experimental)
 --fullscreen --display 1     fullscreen on your second monitor
 --mode bars --palette cyan
