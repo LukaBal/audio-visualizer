@@ -652,6 +652,17 @@ class Visualizer:
             return (px, py)
         return None
 
+    def _show_chrome(self):
+        """Only reveal the panel when edge-resizing is switched on.
+
+        The reveal exists to make the edges grabbable; with resizing off there
+        is nothing to grab, and a panel that lights up whenever the pointer
+        crosses it just looks like a glitch.
+        """
+        if not ((self.gadget or self.wallpaper) and self.resizable):
+            return False
+        return bool(self._hover_at or self._dragging)
+
     def _draw_chrome(self, point):
         """Outline and grab handles, drawn on top of everything.
 
@@ -756,7 +767,7 @@ class Visualizer:
         # Glow goes straight onto the screen (cleared each frame) so it sits
         # behind the trail without accumulating into a white blob.
         screen.fill((0, 0, 0))
-        if transparent and (self._hover_at or self._dragging):
+        if self._show_chrome():
             # Survives the BG_FLOOR subtraction below, so it stays
             # non-black and therefore clickable.
             screen.fill((BG_FLOOR + 14,) * 3)
@@ -772,7 +783,7 @@ class Visualizer:
             # fill, so it costs nothing next to a per-pixel pass in numpy.
             screen.fill((BG_FLOOR, BG_FLOOR, BG_FLOOR), special_flags=pygame.BLEND_RGB_SUB)
 
-        if transparent and (self._hover_at or self._dragging):
+        if self._show_chrome():
             self._draw_chrome(self._hover_at)
 
         if self.show_hud:
