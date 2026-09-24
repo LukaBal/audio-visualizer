@@ -105,6 +105,7 @@ class Visualizer:
         self._drag_window = None
         self._drag_rect = None
         self._hover_cursor = None
+        self._hover_at = None
         self._pre_fullscreen = None  # layout to return to when leaving fullscreen
         self._bottom_ticks = 0
 
@@ -626,6 +627,74 @@ class Visualizer:
         else:
             self.running = False
 
+
+    # ------------------------------------------------------------------ chrome
+
+    def _hover_point(self):
+        """Cursor position inside the window, or None if it is elsewhere.
+
+        Polled rather than taken from MOUSEMOTION: colour-keyed pixels are
+        transparent to input too, so no mouse events arrive at all while the
+        pointer is over an empty part of the panel.
+        """
+        if not (self.gadget and self.is_open) or self.click_through:
+            return None
+        cursor = overlay.cursor_pos()
+        if cursor is None:
+            return None
+        try:
+            wx, wy = pygame.display.get_window_position()
+        except (AttributeError, pygame.error):
+            return None
+        w, h = self.screen.get_size()
+        px, py = cursor[0] - wx, cursor[1] - wy
+        if 0 <= px < w and 0 <= py < h:
+            return (px, py)
+        return None
+
+    def _draw_chrome(self, point):
+        """Outline and grab handles, drawn on top of everything.
+
+        This is what makes the panel usable: every pixel here is non-black, so
+        Windows hit-tests it and clicks land on us instead of falling through to
+        whatever is underneath.
+        """
+        w, h = self.screen.get_size()
+        edge = (120, 122, 132)
+        pygame.draw.rect(self.screen, edge, (0, 0, w, h), 1)
+        if not self.resizable:
+            return
+
+        bright = (215, 218, 228)
+        arm = max(10, int(min(w, h) * 0.09))
+        thick = 3
+        for cx, cy in ((0, 0), (w, 0), (0, h), (w, h)):
+            sx = 1 if cx == 0 else -1
+            sy = 1 if cy == 0 else -1
+            x = cx if sx > 0 else cx - arm
+            y = cy if sy > 0 else cy - thick
+            pygame.draw.rect(self.screen, bright, (x, y, arm, thick))
+            x = cx if sx > 0 else cx - thick
+            y = cy if sy > 0 else cy - arm
+            pygame.draw.rect(self.screen, bright, (x, y, thick, arm))
+
+        # Middle-of-edge ticks, so single-axis resizing is advertised too.
+        tick = max(14, int(min(w, h) * 0.12))
+        ex, ey = self.edges_at(point) if point else (0, 0)
+        for horizontal, active in ((True, ey), (False, ex)):
+            if horizontal:
+                for y, side in ((0, -1), (h - thick, 1)):
+                    colour = bright if active == side else edge
+                    pygame.draw.rect(
+                        self.screen, colour, ((w - tick) // 2, y, tick, thick)
+                    )
+            else:
+                for x, side in ((0, -1), (w - thick, 1)):
+                    colour = bright if active == side else edge
+                    pygame.draw.rect(
+                        self.screen, colour, (x, (h - tick) // 2, thick, tick)
+                    )
+
     # ------------------------------------------------------------------ loop
 
     def handle_events(self):
@@ -687,6 +756,10 @@ class Visualizer:
         # Glow goes straight onto the screen (cleared each frame) so it sits
         # behind the trail without accumulating into a white blob.
         screen.fill((0, 0, 0))
+        if transparent and (self._hover_at or self._dragging):
+            # Survives the BG_FLOOR subtraction below, so it stays
+            # non-black and therefore clickable.
+            screen.fill((BG_FLOOR + 14,) * 3)
         self.mode.draw(trail, self.analyzer, ctx)
         screen.blit(trail, (0, 0))
 
@@ -698,6 +771,9 @@ class Visualizer:
             # everything else by BG_FLOOR/255 is imperceptible. One blended
             # fill, so it costs nothing next to a per-pixel pass in numpy.
             screen.fill((BG_FLOOR, BG_FLOOR, BG_FLOOR), special_flags=pygame.BLEND_RGB_SUB)
+
+        if transparent and (self._hover_at or self._dragging):
+            self._draw_chrome(self._hover_at)
 
         if self.show_hud:
             self._draw_hud()
@@ -724,6 +800,9 @@ class Visualizer:
         """One tick: events, then a rendered frame if the window is still up."""
         dt = self.clock.tick(self.fps) / 1000.0
         self.handle_events()
+        if self.is_open:
+            self._hover_at = self._hover_point()
+            self.update_hover_cursor(self._hover_at)
         if self._dragging:
             if overlay.left_button_down():
                 self.drag_update(overlay.cursor_pos())

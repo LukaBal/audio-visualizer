@@ -70,6 +70,11 @@ Where you put the gadget, how big it is and how it looks are remembered in
   off the screen: it stays fully inside whichever monitor the cursor is on, so
   dragging it to a second monitor works, but dragging it into nothing does not.
   A position saved on a monitor that is later unplugged is pulled back on screen.
+- **Hover to reveal it.** Move the pointer onto the gadget and a faint panel,
+  outline and grab handles appear; move away and it goes back to bare visuals.
+  This is not just decoration: colour-keyed pixels are transparent to *clicks*
+  as well as to light, so without something drawn there a click on an empty part
+  of the panel sails straight through to whatever is behind it.
 - **Resize by dragging edges** — a tray toggle, on by default. Grab the left or
   right edge for **width**, the top or bottom edge for **height**, or any corner
   for **both at once**. The pointer changes shape as you cross an edge so you can
